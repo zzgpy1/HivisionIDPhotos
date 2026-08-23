@@ -23,7 +23,6 @@ jobs:
         with:
           python-version: '3.10'
 
-      # 列出根目录文件，便于调试
       - name: List root directory
         shell: pwsh
         run: |
@@ -43,18 +42,13 @@ jobs:
             exit 1
           }
 
-      # 将所需资源文件复制到根目录（模型 + 所有 CSV）
       - name: Copy resources to root
         shell: pwsh
         run: |
-          # 复制模型
           if (Test-Path hivision/creator/weights/hivision_modnet.onnx) {
             Copy-Item -Path hivision/creator/weights/hivision_modnet.onnx -Destination ./ -Force
             Write-Host "✅ Model copied to root."
-          } else {
-            Write-Warning "Model not found at hivision/creator/weights/."
           }
-          # 递归搜索所有 CSV 文件并复制到根目录
           $csvFiles = Get-ChildItem -Path ./ -Recurse -Include *.csv -ErrorAction SilentlyContinue
           if ($csvFiles) {
             foreach ($file in $csvFiles) {
@@ -62,8 +56,6 @@ jobs:
               Copy-Item -Path $file.FullName -Destination $dest -Force
               Write-Host "Copied $($file.Name) to root."
             }
-          } else {
-            Write-Warning "No CSV files found in repository."
           }
           Write-Host "Files in root (CSV/ONNX):"
           Get-ChildItem -Path ./ -Include *.csv,*.onnx -ErrorAction SilentlyContinue | Select-Object Name
@@ -74,21 +66,52 @@ jobs:
           pip install -r requirements.txt
           pip install pyinstaller
 
-      # 修正 app.spec 中的多个问题：
-      # 1. 入口脚本 app/web.py → app.py
-      # 2. 目录名 hivisionai → hivision
-      # 3. 移除图标引用（使用更鲁棒的正则）
       - name: Fix app.spec paths
         shell: pwsh
         run: |
           if (Test-Path app.spec) {
             $content = Get-Content app.spec -Raw
+            # 修复入口脚本
             $content = $content -replace 'app/web\.py', 'app.py'
+            # 修复目录名
             $content = $content -replace 'hivisionai', 'hivision'
-            # 匹配 icon= 后面可能带单双引号，包含 assets 和 hivision.ico 的部分，替换为 icon=None
-            $content = $content -replace 'icon\s*=\s*["'']?[^,]*hivision\.ico["'']?', 'icon=None'
+            # 查找包含 icon 的行，并注释掉
+            $lines = $content -split "`r`n"
+            $newLines = @()
+            $foundIcon = $false
+            foreach ($line in $lines) {
+              if ($line -match 'icon\s*=\s*["'']?[^,)]*hivision\.ico') {
+                Write-Host "Found icon line: $line"
+                # 注释掉该行，并保留原来的缩进
+                $newLines += "# " + $line.TrimStart()
+                $foundIcon = $true
+              } else {
+                $newLines += $line
+              }
+            }
+            if ($foundIcon) {
+              $content = $newLines -join "`r`n"
+              Write-Host "✅ Removed icon line by commenting."
+            } else {
+              Write-Host "⚠️ No icon line found with hivision.ico, proceeding."
+            }
             $content | Set-Content app.spec
             Write-Host "✅ app.spec fixed."
+            # 显示修改后的 EXE 部分
+            Write-Host "--- app.spec content (EXE part) after fix ---"
+            $linesAfter = Get-Content app.spec
+            $start = 0
+            for ($i=0; $i -lt $linesAfter.Count; $i++) {
+              if ($linesAfter[$i] -match '^exe\s*=\s*EXE\(') {
+                $start = $i
+                break
+              }
+            }
+            if ($start -ge 0) {
+              for ($i=$start; $i -lt [Math]::Min($start+15, $linesAfter.Count); $i++) {
+                Write-Host $linesAfter[$i]
+              }
+            }
           } else {
             Write-Error "❌ app.spec not found."
             exit 1
