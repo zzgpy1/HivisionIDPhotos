@@ -47,16 +47,26 @@ jobs:
           pip install -r requirements.txt
           pip install pyinstaller
 
-      # 使用 --onedir 模式，并添加 hivision 整个目录作为数据文件
+      # 使用 --onedir，添加整个 hivision 目录，并明确导入 PIL、onnxruntime 等
       - name: Build with PyInstaller (OneDir)
         run: |
           pyinstaller --onedir `
             --add-data "hivision;hivision" `
+            --hidden-import PIL `
+            --hidden-import PIL.Image `
+            --hidden-import PIL.ImageDraw `
+            --hidden-import PIL.ImageFont `
+            --hidden-import onnxruntime `
+            --hidden-import cv2 `
+            --hidden-import numpy `
+            --hidden-import gradio `
+            --hidden-import gradio_client `
+            --collect-all PIL `
+            --collect-all onnxruntime `
             --name "HivisionIDPhotos" `
             --icon NONE `
             app.py
 
-      # 将整个输出目录打包为 ZIP（方便分发）
       - name: Package into ZIP
         shell: pwsh
         run: |
@@ -69,7 +79,6 @@ jobs:
           name: HivisionIDPhotos-Win
           path: HivisionIDPhotos-win.zip
 
-      # ---------- 确定 Release 标签 ----------
       - name: Determine release tag
         id: get_tag
         shell: pwsh
@@ -82,7 +91,6 @@ jobs:
           echo "tag=$TAG" >> $env:GITHUB_OUTPUT
           echo "Determined tag: $TAG"
 
-      # ---------- 创建 GitHub Release ----------
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v1
         if: |
