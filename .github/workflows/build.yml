@@ -36,6 +36,13 @@ jobs:
             exit 1
           }
 
+      # 将模型复制到根目录，因为 app.spec 在根目录寻找此文件
+      - name: Copy model to root
+        shell: pwsh
+        run: |
+          Copy-Item hivision/creator/weights/hivision_modnet.onnx ./hivision_modnet.onnx
+          Write-Host "✅ Model copied to root."
+
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
