@@ -4,7 +4,7 @@ on:
   push:
     tags:
       - 'v*'          # 推送标签时自动触发
-  workflow_dispatch:  # 手动触发（方便测试）
+  workflow_dispatch:  # 手动触发（推荐测试用）
 
 permissions:
   contents: write
@@ -43,12 +43,12 @@ jobs:
           pip install -r requirements.txt
           pip install pyinstaller
 
-      # 修正 app.spec 中的脚本路径：将 app/web.py 改为 app.py
+      # 修正 app.spec 中的脚本路径：将 app/web.py 改为 app.py（不涉及引号，仅替换路径字符串）
       - name: Fix app.spec script path
         shell: pwsh
         run: |
           if (Test-Path app.spec) {
-            (Get-Content app.spec) -replace "['\"]app/web\.py['\"]", "'app.py'" | Set-Content app.spec
+            (Get-Content app.spec) -replace 'app/web\.py', 'app.py' | Set-Content app.spec
             Write-Host "✅ app.spec fixed."
           } else {
             Write-Error "❌ app.spec not found."
