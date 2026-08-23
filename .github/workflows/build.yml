@@ -3,8 +3,8 @@ name: Build Windows EXE
 on:
   push:
     tags:
-      - 'v*'          # 推送标签时自动触发
-  workflow_dispatch:  # 手动触发（推荐测试用）
+      - 'v*'
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -23,7 +23,6 @@ jobs:
         with:
           python-version: '3.10'
 
-      # 下载模型权重（避免打包后运行时下载）
       - name: Download model weights
         shell: pwsh
         run: |
@@ -43,12 +42,17 @@ jobs:
           pip install -r requirements.txt
           pip install pyinstaller
 
-      # 修正 app.spec 中的脚本路径：将 app/web.py 改为 app.py（不涉及引号，仅替换路径字符串）
-      - name: Fix app.spec script path
+      # 修正 app.spec 中的两个错误路径：
+      #   1. 'app/web.py' → 'app.py'
+      #   2. 'hivisionai' → 'hivision'
+      - name: Fix app.spec paths
         shell: pwsh
         run: |
           if (Test-Path app.spec) {
-            (Get-Content app.spec) -replace 'app/web\.py', 'app.py' | Set-Content app.spec
+            $content = Get-Content app.spec -Raw
+            $content = $content -replace 'app/web\.py', 'app.py'
+            $content = $content -replace 'hivisionai', 'hivision'
+            $content | Set-Content app.spec
             Write-Host "✅ app.spec fixed."
           } else {
             Write-Error "❌ app.spec not found."
