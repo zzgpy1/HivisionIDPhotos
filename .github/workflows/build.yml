@@ -1,4 +1,4 @@
-name: Build Windows EXE (Full with Gradio)
+name: Build Windows EXE (Spec with collect_all)
 
 on:
   push:
@@ -48,25 +48,34 @@ jobs:
           pip install pyinstaller
           pip install Pillow
 
-      - name: Build with PyInstaller (OneDir)
+      # 生成 spec 文件，然后修改
+      - name: Generate and patch spec file
+        shell: pwsh
         run: |
-          pyinstaller --onedir `
-            --add-data "hivision;hivision" `
-            --add-data "demo;demo" `
-            --hidden-import PIL `
-            --hidden-import PIL.Image `
-            --hidden-import PIL.ImageDraw `
-            --hidden-import demo.processor `
-            --hidden-import onnxruntime `
-            --hidden-import cv2 `
-            --hidden-import numpy `
-            --hidden-import gradio `
-            --hidden-import gradio_client `
-            --collect-all gradio `
-            --collect-all gradio_client `
-            --name "HivisionIDPhotos" `
-            --icon NONE `
-            app.py
+          # 生成 spec
+          pyi-makespec --onedir --name "HivisionIDPhotos" app.py
+
+          # 读取 spec 内容
+          $content = Get-Content HivisionIDPhotos.spec -Raw
+
+          # 在 analysis 的 datas 中添加 collect_all 调用
+          # 将 `datas=[],` 替换为 datas 列表，包含 collect_all
+          $gradioCollect = "collect_all('gradio'), collect_all('gradio_client')"
+          # 查找 datas= 行并替换
+          $content = $content -replace '(datas\s*=\s*\[)', "`$1`n    $gradioCollect,`n    ('hivision', 'hivision'),`n    ('demo', 'demo'),"
+
+          # 添加必要的 hiddenimports
+          $content = $content -replace '(hiddenimports\s*=\s*\[)', "`$1`n    'PIL','PIL.Image','PIL.ImageDraw','demo.processor','onnxruntime','cv2','numpy','gradio','gradio_client',"
+
+          # 修改 exe 的 icon 为 None（避免缺失文件）
+          $content = $content -replace 'icon\s*=\s*["'']?[^,)]*\.ico["'']?', 'icon=None'
+
+          # 保存
+          $content | Set-Content HivisionIDPhotos.spec
+          Write-Host "✅ spec file patched."
+
+      - name: Build with PyInstaller using spec
+        run: pyinstaller HivisionIDPhotos.spec
 
       - name: Package into ZIP
         shell: pwsh
