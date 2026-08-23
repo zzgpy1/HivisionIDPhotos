@@ -1,4 +1,4 @@
-name: Build Windows EXE (OneDir)
+name: Build Windows EXE (Fix PIL)
 
 on:
   push:
@@ -46,8 +46,9 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
           pip install pyinstaller
+          # 显式安装 Pillow，确保版本
+          pip install Pillow
 
-      # 使用 --onedir，添加整个 hivision 目录，并明确导入 PIL、onnxruntime 等
       - name: Build with PyInstaller (OneDir)
         run: |
           pyinstaller --onedir `
@@ -55,14 +56,7 @@ jobs:
             --hidden-import PIL `
             --hidden-import PIL.Image `
             --hidden-import PIL.ImageDraw `
-            --hidden-import PIL.ImageFont `
-            --hidden-import onnxruntime `
-            --hidden-import cv2 `
-            --hidden-import numpy `
-            --hidden-import gradio `
-            --hidden-import gradio_client `
-            --collect-all PIL `
-            --collect-all onnxruntime `
+            --hidden-import demo.processor `
             --name "HivisionIDPhotos" `
             --icon NONE `
             app.py
