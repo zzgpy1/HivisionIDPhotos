@@ -114,16 +114,17 @@ jobs:
       # ---------- 确定 Release 标签 ----------
       - name: Determine release tag
         id: get_tag
+        shell: pwsh
         run: |
-          if [[ "${{ github.event_name }}" == "push" ]]; then
-            TAG="${{ github.ref_name }}"
-          else
-            TAG="${{ github.event.inputs.tag }}"
-          fi
-          echo "tag=$TAG" >> $GITHUB_OUTPUT
+          if ("${{ github.event_name }}" -eq "push") {
+            $TAG = "${{ github.ref_name }}"
+          } else {
+            $TAG = "${{ github.event.inputs.tag }}"
+          }
+          echo "tag=$TAG" >> $env:GITHUB_OUTPUT
           echo "Determined tag: $TAG"
 
-      # ---------- 创建 Release（仅在满足条件时） ----------
+      # ---------- 创建 Release ----------
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v1
         if: |
