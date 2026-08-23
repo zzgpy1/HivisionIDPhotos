@@ -4,7 +4,7 @@ on:
   push:
     tags:
       - 'v*'          # 推送标签时自动触发
-  workflow_dispatch:  # 手动触发（推荐测试用）
+  workflow_dispatch:  # 手动触发（方便测试）
 
 permissions:
   contents: write
@@ -23,14 +23,13 @@ jobs:
         with:
           python-version: '3.10'
 
-      # 关键修正：使用 New-Item -Force 避免目录存在报错，并使用 curl.exe 以免别名干扰
+      # 下载模型权重（避免打包后运行时下载）
       - name: Download model weights
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force -Path hivision\creator\weights
           curl.exe -L -o hivision/creator/weights/hivision_modnet.onnx `
             https://github.com/Zeyi-Lin/HivisionIDPhotos/releases/download/weights/hivision_modnet.onnx
-          # 简单校验是否下载成功
           if (Test-Path hivision/creator/weights/hivision_modnet.onnx) {
             Write-Host "✅ Model downloaded successfully."
           } else {
@@ -43,6 +42,18 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
           pip install pyinstaller
+
+      # 修正 app.spec 中的脚本路径：将 app/web.py 改为 app.py
+      - name: Fix app.spec script path
+        shell: pwsh
+        run: |
+          if (Test-Path app.spec) {
+            (Get-Content app.spec) -replace "['\"]app/web\.py['\"]", "'app.py'" | Set-Content app.spec
+            Write-Host "✅ app.spec fixed."
+          } else {
+            Write-Error "❌ app.spec not found."
+            exit 1
+          }
 
       - name: Build with PyInstaller
         run: pyinstaller app.spec
