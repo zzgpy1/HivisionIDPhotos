@@ -1,4 +1,4 @@
-name: Build Windows EXE (Spec with correct collect_all import)
+name: Build Windows EXE (Manual gradio paths)
 
 on:
   push:
@@ -48,36 +48,37 @@ jobs:
           pip install pyinstaller
           pip install Pillow
 
-      - name: Generate and patch spec file
+      - name: Get gradio and gradio_client paths
+        id: gradio_paths
         shell: pwsh
         run: |
-          # 生成 spec
-          pyi-makespec --onedir --name "HivisionIDPhotos" app.py
+          $gradio_path = python -c "import gradio; print(gradio.__path__[0])"
+          $gradio_client_path = python -c "import gradio_client; print(gradio_client.__path__[0])"
+          echo "GRADIO_PATH=$gradio_path" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          echo "GRADIO_CLIENT_PATH=$gradio_client_path" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          Write-Host "✅ gradio path: $gradio_path"
+          Write-Host "✅ gradio_client path: $gradio_client_path"
 
-          # 读取 spec
-          $content = Get-Content HivisionIDPhotos.spec -Raw
-
-          # 1. 在开头添加 collect_all 导入（正确路径）
-          $importLine = "from PyInstaller.utils.hooks import collect_all`n"
-          $content = $importLine + $content
-
-          # 2. 替换 datas 行，使用 collect_all 生成列表
-          $pattern = '(datas\s*=\s*)\[\]'
-          $replacement = "`$1collect_all('gradio') + collect_all('gradio_client') + [('hivision', 'hivision'), ('demo', 'demo')]"
-          $content = $content -replace $pattern, $replacement
-
-          # 3. 添加 hiddenimports
-          $content = $content -replace '(hiddenimports\s*=\s*\[)', "`$1'PIL','PIL.Image','PIL.ImageDraw','demo.processor','onnxruntime','cv2','numpy','gradio','gradio_client',"
-
-          # 4. 移除 icon
-          $content = $content -replace 'icon\s*=\s*["'']?[^,)]*\.ico["'']?', 'icon=None'
-
-          # 保存
-          $content | Set-Content HivisionIDPhotos.spec
-          Write-Host "✅ spec file patched."
-
-      - name: Build with PyInstaller using spec
-        run: pyinstaller HivisionIDPhotos.spec
+      - name: Build with PyInstaller (OneDir) including gradio paths
+        shell: pwsh
+        run: |
+          pyinstaller --onedir `
+            --add-data "hivision;hivision" `
+            --add-data "demo;demo" `
+            --add-data "$env:GRADIO_PATH;gradio" `
+            --add-data "$env:GRADIO_CLIENT_PATH;gradio_client" `
+            --hidden-import PIL `
+            --hidden-import PIL.Image `
+            --hidden-import PIL.ImageDraw `
+            --hidden-import demo.processor `
+            --hidden-import onnxruntime `
+            --hidden-import cv2 `
+            --hidden-import numpy `
+            --hidden-import gradio `
+            --hidden-import gradio_client `
+            --name "HivisionIDPhotos" `
+            --icon NONE `
+            app.py
 
       - name: Package into ZIP
         shell: pwsh
