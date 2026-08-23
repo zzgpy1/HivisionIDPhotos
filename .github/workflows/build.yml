@@ -1,4 +1,4 @@
-name: Build Windows EXE (Fix PIL)
+name: Build Windows EXE (Full with Gradio)
 
 on:
   push:
@@ -46,17 +46,24 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
           pip install pyinstaller
-          # 显式安装 Pillow，确保版本
           pip install Pillow
 
       - name: Build with PyInstaller (OneDir)
         run: |
           pyinstaller --onedir `
             --add-data "hivision;hivision" `
+            --add-data "demo;demo" `
             --hidden-import PIL `
             --hidden-import PIL.Image `
             --hidden-import PIL.ImageDraw `
             --hidden-import demo.processor `
+            --hidden-import onnxruntime `
+            --hidden-import cv2 `
+            --hidden-import numpy `
+            --hidden-import gradio `
+            --hidden-import gradio_client `
+            --collect-all gradio `
+            --collect-all gradio_client `
             --name "HivisionIDPhotos" `
             --icon NONE `
             app.py
