@@ -23,7 +23,7 @@ jobs:
         with:
           python-version: '3.10'
 
-      # 列出根目录所有文件，帮助诊断
+      # 列出根目录文件，便于调试
       - name: List root directory
         shell: pwsh
         run: |
@@ -43,19 +43,18 @@ jobs:
             exit 1
           }
 
-      # 复制所需文件到根目录（模型 + 所有 CSV 文件）
+      # 将所需资源文件复制到根目录（模型 + 所有 CSV）
       - name: Copy resources to root
         shell: pwsh
         run: |
-          # 复制模型文件
+          # 复制模型
           if (Test-Path hivision/creator/weights/hivision_modnet.onnx) {
             Copy-Item -Path hivision/creator/weights/hivision_modnet.onnx -Destination ./ -Force
             Write-Host "✅ Model copied to root."
           } else {
             Write-Warning "Model not found at hivision/creator/weights/."
           }
-
-          # 搜索整个仓库中所有 .csv 文件并复制到根目录（包括子目录）
+          # 递归搜索所有 CSV 文件并复制到根目录
           $csvFiles = Get-ChildItem -Path ./ -Recurse -Include *.csv -ErrorAction SilentlyContinue
           if ($csvFiles) {
             foreach ($file in $csvFiles) {
@@ -66,8 +65,6 @@ jobs:
           } else {
             Write-Warning "No CSV files found in repository."
           }
-
-          # 列出根目录的 CSV 和 ONNX 文件以验证
           Write-Host "Files in root (CSV/ONNX):"
           Get-ChildItem -Path ./ -Include *.csv,*.onnx -ErrorAction SilentlyContinue | Select-Object Name
 
@@ -77,6 +74,10 @@ jobs:
           pip install -r requirements.txt
           pip install pyinstaller
 
+      # 修正 app.spec 中的多个问题：
+      # 1. 入口脚本 app/web.py → app.py
+      # 2. 目录名 hivisionai → hivision
+      # 3. 移除图标引用（因为图标文件缺失）
       - name: Fix app.spec paths
         shell: pwsh
         run: |
@@ -84,6 +85,8 @@ jobs:
             $content = Get-Content app.spec -Raw
             $content = $content -replace 'app/web\.py', 'app.py'
             $content = $content -replace 'hivisionai', 'hivision'
+            # 将图标赋值替换为 None，避免因文件不存在导致构建失败
+            $content = $content -replace "icon\s*=\s*['""]assets/hivision\.ico['""]", "icon=None"
             $content | Set-Content app.spec
             Write-Host "✅ app.spec fixed."
           } else {
