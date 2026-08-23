@@ -1,4 +1,4 @@
-name: Build Windows EXE (Spec with collect_all fixed)
+name: Build Windows EXE (Spec with correct collect_all import)
 
 on:
   push:
@@ -57,12 +57,11 @@ jobs:
           # 读取 spec
           $content = Get-Content HivisionIDPhotos.spec -Raw
 
-          # 1. 在开头添加 collect_all 导入
-          $importLine = "from PyInstaller.building.build_main import collect_all`n"
+          # 1. 在开头添加 collect_all 导入（正确路径）
+          $importLine = "from PyInstaller.utils.hooks import collect_all`n"
           $content = $importLine + $content
 
           # 2. 替换 datas 行，使用 collect_all 生成列表
-          # 原 datas=[], 替换为 datas = collect_all('gradio') + collect_all('gradio_client') + [('hivision', 'hivision'), ('demo', 'demo')],
           $pattern = '(datas\s*=\s*)\[\]'
           $replacement = "`$1collect_all('gradio') + collect_all('gradio_client') + [('hivision', 'hivision'), ('demo', 'demo')]"
           $content = $content -replace $pattern, $replacement
