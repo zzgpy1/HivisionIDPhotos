@@ -1,0 +1,57 @@
+name: Build Windows EXE
+
+on:
+  push:
+    tags:
+      - 'v*'          # 当你推送 v1.0.0 这样的标签时自动触发
+  workflow_dispatch:  # 允许你手动点击按钮触发（最方便）
+
+permissions:
+  contents: write
+
+jobs:
+  build-exe:
+    name: Build Windows Executable
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      # 关键点：HivisionIDPhotos 需要预下载模型权重，否则打包后运行会报错
+      - name: Download model weights
+        run: |
+          mkdir hivision\creator\weights
+          curl -L -o hivision/creator/weights/hivision_modnet.onnx ^
+            https://github.com/Zeyi-Lin/HivisionIDPhotos/releases/download/weights/hivision_modnet.onnx
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pyinstaller
+
+      # 使用官方的 app.spec 进行打包
+      - name: Build with PyInstaller
+        run: pyinstaller app.spec
+
+      # 将打包好的 exe 上传到 Actions 的页面，供你下载
+      - name: Upload EXE artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: HivisionIDPhotos-Win
+          path: dist/*.exe
+
+      # 如果你打的是正式标签（Tag），自动把 exe 挂到 GitHub Release 页面上
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v1
+        if: startsWith(github.ref, 'refs/tags/')
+        with:
+          files: dist/*.exe
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
