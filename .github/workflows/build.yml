@@ -77,7 +77,7 @@ jobs:
       # 修正 app.spec 中的多个问题：
       # 1. 入口脚本 app/web.py → app.py
       # 2. 目录名 hivisionai → hivision
-      # 3. 移除图标引用（因为图标文件缺失）
+      # 3. 移除图标引用（使用更鲁棒的正则）
       - name: Fix app.spec paths
         shell: pwsh
         run: |
@@ -85,8 +85,8 @@ jobs:
             $content = Get-Content app.spec -Raw
             $content = $content -replace 'app/web\.py', 'app.py'
             $content = $content -replace 'hivisionai', 'hivision'
-            # 将图标赋值替换为 None，避免因文件不存在导致构建失败
-            $content = $content -replace "icon\s*=\s*['""]assets/hivision\.ico['""]", "icon=None"
+            # 匹配 icon= 后面可能带单双引号，包含 assets 和 hivision.ico 的部分，替换为 icon=None
+            $content = $content -replace 'icon\s*=\s*["'']?[^,]*hivision\.ico["'']?', 'icon=None'
             $content | Set-Content app.spec
             Write-Host "✅ app.spec fixed."
           } else {
