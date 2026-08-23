@@ -36,20 +36,24 @@ jobs:
             exit 1
           }
 
-      # 将模型和资源文件复制到根目录（因为 app.spec 从根目录引用它们）
       - name: Copy model and resources to root
         shell: pwsh
         run: |
-          # 复制模型文件
-          Copy-Item hivision/creator/weights/hivision_modnet.onnx ./ -ErrorAction SilentlyContinue
-          # 复制所有 CSV 文件（如 size_list_CN.csv, size_list_EN.csv）
-          if (Test-Path hivision/resources) {
-            Copy-Item hivision/resources/*.csv ./ -ErrorAction SilentlyContinue
-            Write-Host "✅ CSV resources copied to root."
+          # 确保根目录存在（当前目录就是根）
+          Write-Host "Current directory: $(Get-Location)"
+          # 复制模型
+          Copy-Item -Path "hivision/creator/weights/hivision_modnet.onnx" -Destination "./" -Force
+          # 复制所有 CSV 资源文件
+          if (Test-Path "hivision/resources") {
+            Write-Host "Copying CSV files from hivision/resources..."
+            Copy-Item -Path "hivision/resources/*.csv" -Destination "./" -Force -ErrorAction Stop
+            Write-Host "✅ CSV files copied."
           } else {
-            Write-Host "⚠️ hivision/resources not found, skipping."
+            Write-Warning "hivision/resources directory not found, skipping CSV copy."
           }
-          # 可能需要复制其他资源，如字体等（但先处理 CSV）
+          # 列出根目录下的 CSV 和模型文件，以便调试
+          Write-Host "Files in root:"
+          Get-ChildItem -Path ./ -Filter "*.csv", "*.onnx" -ErrorAction SilentlyContinue | Select-Object Name
 
       - name: Install dependencies
         run: |
@@ -57,9 +61,6 @@ jobs:
           pip install -r requirements.txt
           pip install pyinstaller
 
-      # 修正 app.spec 中的两个错误路径：
-      #   1. 'app/web.py' → 'app.py'
-      #   2. 'hivisionai' → 'hivision'
       - name: Fix app.spec paths
         shell: pwsh
         run: |
