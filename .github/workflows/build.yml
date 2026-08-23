@@ -41,7 +41,34 @@ jobs:
             exit 1
           }
 
-      # 不再复制到根目录，保持原有结构
+      # ---------- 复制所有资源到根目录（适配 app.spec 中的硬编码路径） ----------
+      - name: Copy resources to root
+        shell: pwsh
+        run: |
+          # 复制模型文件到根目录
+          if (Test-Path hivision/creator/weights/hivision_modnet.onnx) {
+            Copy-Item -Path hivision/creator/weights/hivision_modnet.onnx -Destination ./ -Force
+            Write-Host "✅ Model copied to root."
+          }
+          # 递归查找所有 CSV 文件并复制到根目录
+          $csvFiles = Get-ChildItem -Path ./ -Recurse -Include *.csv -ErrorAction SilentlyContinue
+          if ($csvFiles) {
+            foreach ($file in $csvFiles) {
+              Copy-Item -Path $file.FullName -Destination ./ -Force
+              Write-Host "Copied $($file.Name) to root."
+            }
+          }
+          # 复制字体文件（如果有）
+          $fontFiles = Get-ChildItem -Path ./ -Recurse -Include *.ttf,*.otf -ErrorAction SilentlyContinue
+          if ($fontFiles) {
+            foreach ($file in $fontFiles) {
+              Copy-Item -Path $file.FullName -Destination ./ -Force
+              Write-Host "Copied $($file.Name) to root."
+            }
+          }
+          # 列出根目录下的关键文件，以便调试
+          Write-Host "Files in root:"
+          Get-ChildItem -Path ./ -Include *.onnx,*.csv,*.ttf,*.otf -ErrorAction SilentlyContinue | Select-Object Name
 
       - name: Install dependencies
         run: |
@@ -49,30 +76,37 @@ jobs:
           pip install -r requirements.txt
           pip install pyinstaller
 
-      # 修改 app.spec，确保整个 hivision 目录被包含
-      - name: Fix app.spec
+      # ---------- 修复 app.spec ----------
+      - name: Fix app.spec paths
         shell: pwsh
         run: |
           if (Test-Path app.spec) {
             $content = Get-Content app.spec -Raw
-            # 修正入口脚本
+            # 1. 入口脚本路径
             $content = $content -replace 'app/web\.py', 'app.py'
-            # 修正目录名
+            # 2. 目录名错误
             $content = $content -replace 'hivisionai', 'hivision'
-            # 注释掉 icon 行
+            # 3. 注释掉 icon 行（避免图标文件缺失）
             $lines = $content -split "`r`n"
             $newLines = @()
+            $foundIcon = $false
             foreach ($line in $lines) {
               if ($line -match 'icon\s*=\s*["'']?[^,)]*hivision\.ico') {
+                Write-Host "Found icon line: $line"
                 $newLines += "# " + $line.TrimStart()
+                $foundIcon = $true
               } else {
                 $newLines += $line
               }
             }
-            $content = $newLines -join "`r`n"
-            # 确保 datas 包含整个 hivision 目录（递归）
+            if ($foundIcon) {
+              $content = $newLines -join "`r`n"
+              Write-Host "✅ Removed icon line by commenting."
+            }
+            # 4. 确保 datas 包含整个 hivision 目录（提供额外保障，但根目录已有文件）
             if ($content -notmatch "('hivision', 'hivision')") {
               $content = $content -replace '(datas\s*=\s*\[)', '$1\n    ("hivision", "hivision"),'
+              Write-Host "Added hivision directory to datas."
             }
             $content | Set-Content app.spec
             Write-Host "✅ app.spec fixed."
@@ -90,6 +124,7 @@ jobs:
           name: HivisionIDPhotos-Win
           path: dist/*.exe
 
+      # ---------- 确定 Release 标签 ----------
       - name: Determine release tag
         id: get_tag
         shell: pwsh
@@ -102,6 +137,7 @@ jobs:
           echo "tag=$TAG" >> $env:GITHUB_OUTPUT
           echo "Determined tag: $TAG"
 
+      # ---------- 创建 GitHub Release ----------
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v1
         if: |
