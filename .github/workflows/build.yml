@@ -3,8 +3,8 @@ name: Build Windows EXE
 on:
   push:
     tags:
-      - 'v*'          # 当你推送 v1.0.0 这样的标签时自动触发
-  workflow_dispatch:  # 允许你手动点击按钮触发（最方便）
+      - 'v*'          # 推送标签时自动触发
+  workflow_dispatch:  # 手动触发（推荐测试用）
 
 permissions:
   contents: write
@@ -23,12 +23,20 @@ jobs:
         with:
           python-version: '3.10'
 
-      # 关键点：HivisionIDPhotos 需要预下载模型权重，否则打包后运行会报错
+      # 关键修正：使用 New-Item -Force 避免目录存在报错，并使用 curl.exe 以免别名干扰
       - name: Download model weights
+        shell: pwsh
         run: |
-          mkdir hivision\creator\weights
-          curl -L -o hivision/creator/weights/hivision_modnet.onnx ^
+          New-Item -ItemType Directory -Force -Path hivision\creator\weights
+          curl.exe -L -o hivision/creator/weights/hivision_modnet.onnx `
             https://github.com/Zeyi-Lin/HivisionIDPhotos/releases/download/weights/hivision_modnet.onnx
+          # 简单校验是否下载成功
+          if (Test-Path hivision/creator/weights/hivision_modnet.onnx) {
+            Write-Host "✅ Model downloaded successfully."
+          } else {
+            Write-Error "❌ Model download failed."
+            exit 1
+          }
 
       - name: Install dependencies
         run: |
@@ -36,18 +44,15 @@ jobs:
           pip install -r requirements.txt
           pip install pyinstaller
 
-      # 使用官方的 app.spec 进行打包
       - name: Build with PyInstaller
         run: pyinstaller app.spec
 
-      # 将打包好的 exe 上传到 Actions 的页面，供你下载
       - name: Upload EXE artifact
         uses: actions/upload-artifact@v4
         with:
           name: HivisionIDPhotos-Win
           path: dist/*.exe
 
-      # 如果你打的是正式标签（Tag），自动把 exe 挂到 GitHub Release 页面上
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v1
         if: startsWith(github.ref, 'refs/tags/')
